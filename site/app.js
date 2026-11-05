@@ -1,7 +1,9 @@
 (function () {
   'use strict';
 
-  const D = window.PRICE_DATA;
+  const RAW = window.PRICE_DATA.raw;
+  const SOURCES = window.PRICE_DATA.sources;
+  const A = window.Analysis;
   const SVG = 'http://www.w3.org/2000/svg';
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const COMMODITY = { copper: 'Copper', aluminum: 'Aluminum', zinc: 'Zinc', nickel: 'Nickel', iron_ore: 'Iron ore' };
@@ -10,10 +12,6 @@
     medium: { label: 'Medium', color: 'var(--serious)' },
     low: { label: 'Low', color: 'var(--warning)' },
   };
-
-  // Colour follows the supplier, not its rank, so it stays the same on every item.
-  const SUPPLIERS = [...new Set(D.items.flatMap((item) => Object.keys(item.prices)))].sort();
-  const colorOf = (name) => `var(--s${SUPPLIERS.indexOf(name) + 1})`;
 
   const money = (v, digits = 2) => (v == null ? '–' : 'R$ ' + v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
   const signed = (v, unit = '%', digits = 1) => (v == null ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(digits) + unit);
@@ -219,58 +217,130 @@
     return icon;
   }
 
+  // --- state ---------------------------------------------------------------
+
+  const KEY = { ws: 'supplypulse.workspace', keys: 'supplypulse.keys', series: 'supplypulse.series' };
+  const store = {
+    get(k, fallback) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  };
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+
+  function sampleWorkspace() {
+    return {
+      version: 1,
+      mode: 'sample',
+      items: clone(RAW.items),
+      suppliers: [...new Set(RAW.quotes.map((q) => q.supplier))].sort(),
+      quotes: clone(RAW.quotes),
+      apis: [],
+    };
+  }
+
+  const state = {
+    ws: store.get(KEY.ws, null) || sampleWorkspace(),
+    keys: store.get(KEY.keys, {}),
+    series: store.get(KEY.series, {}), // {'bcb:433': {fetched, values: {month: value}}}
+    saved: true,
+  };
+
+  // Built-in market table, with any newer USD/BRL and IGP-M fetched from Banco Central on top.
+  function marketTable() {
+    const market = clone(RAW.market);
+    const put = (key, field) => {
+      const s = state.series[key];
+      if (!s) return;
+      for (const [m, v] of Object.entries(s.values)) (market[m] = market[m] || {})[field] = v;
+    };
+    put('bcb:3698', 'usd_brl');
+    put('bcb:189', 'igpm_pct');
+    return market;
+  }
+
+  function seriesValues() {
+    return Object.fromEntries(Object.entries(state.series).map(([k, s]) => [k, s.values]));
+  }
+
+  let D = null;
+  let colorOf = () => 'var(--s1)';
+
+  function recompute() {
+    D = A.build(state.ws, marketTable(), seriesValues());
+    // Colour follows the supplier, not its rank, so it stays the same on every item. Past eight, one grey.
+    const names = [...state.ws.suppliers].sort();
+    colorOf = (name) => { const i = names.indexOf(name); return i >= 0 && i < 8 ? `var(--s${i + 1})` : 'var(--muted)'; };
+  }
+
+  function commit(change, opts) {
+    change(state.ws);
+    state.ws.mode = 'custom';
+    state.saved = store.set(KEY.ws, state.ws);
+    renderAll();
+    if (!opts || opts.setup !== false) setup.render();
+    else setup.status();
+  }
+
+  function replaceWorkspace(ws) {
+    state.ws = ws;
+    if (ws.mode === 'sample') {
+      try { localStorage.removeItem(KEY.ws); state.saved = true; } catch (e) { state.saved = false; }
+    } else {
+      state.saved = store.set(KEY.ws, ws);
+    }
+    renderAll();
+    setup.render();
+  }
+
   // --- page ---------------------------------------------------------------
 
-  const itemById = Object.fromEntries(D.items.map((item) => [item.id, item]));
-  let selected = D.items[0].id;
+  let selected = null;
   let mode = 'price';
   let disposeChart = null;
+  const $ = (id) => document.getElementById(id);
 
   function renderHeader() {
-    document.getElementById('asof').textContent =
-      `Quotes and market data up to ${monthLabel(D.asOf)}. Page built ${D.generated}.`;
+    const marketNote = D.marketAsOf && D.marketAsOf < D.asOf ? ` Market data up to ${monthLabel(D.marketAsOf)}.` : '';
+    $('asof').textContent = `Quotes up to ${monthLabel(D.asOf)}.${marketNote} ` +
+      (state.ws.mode === 'sample' ? 'Showing the sample items and quotes.' : 'Showing your items and quotes, saved in this browser.');
     const saving = D.flags.reduce((sum, f) => sum + (f.saving_brl || 0), 0);
-    const fx = D.fx;
-    const igpm12 = D.igpmIndex[D.igpmIndex.length - 1] / D.igpmIndex[D.igpmIndex.length - 13] * 100 - 100;
+    const ig = D.igpmIndex;
+    const igpm12 = ig[ig.length - 1] != null && ig[ig.length - 13] != null ? (ig[ig.length - 1] / ig[ig.length - 13]) * 100 - 100 : null;
     const tiles = [
       ['Possible saving, per year', money(saving, 0), 'switching the current supplier where a cheaper valid quote exists'],
       ['Open flags', String(D.flags.length), D.flags.filter((f) => f.severity === 'high').length + ' high'],
-      ['USD/BRL', fx.last.toFixed(4), signed(fx.change_6m) + ' in 6 months'],
+      ['USD/BRL', D.fx.last == null ? '–' : D.fx.last.toFixed(4), signed(D.fx.change_6m) + ' in 6 months'],
       ['IGP-M, 12 months', signed(igpm12), 'inflation reference for price reviews'],
     ];
-    document.getElementById('kpis').replaceChildren(...tiles.map(([label, value, sub]) =>
+    $('kpis').replaceChildren(...tiles.map(([label, value, sub]) =>
       el('div', { class: 'tile' }, el('div', { class: 'label' }, label), el('div', { class: 'value' }, value), el('div', { class: 'sub' }, sub))));
   }
 
   function renderFlags() {
-    const list = document.getElementById('flags');
-    list.replaceChildren(...D.flags.map((f) => {
+    const byId = Object.fromEntries(D.items.map((i) => [i.id, i]));
+    if (!D.flags.length) {
+      $('flags').replaceChildren(el('li', { class: 'empty' }, 'Nothing needs attention with the quotes loaded.'));
+      return;
+    }
+    $('flags').replaceChildren(...D.flags.map((f) => {
       const sev = SEVERITY[f.severity];
       const go = el('button', { type: 'button' }, f.item);
       go.addEventListener('click', () => {
         select(f.item);
-        document.getElementById('item-title').scrollIntoView({ behavior: 'smooth' });
+        $('item-title').scrollIntoView({ behavior: 'smooth' });
       });
       return el('li', null,
         el('span', { class: 'status' }, statusIcon(f.severity), sev.label),
-        el('div', null, el('span', { class: 'flag-item' }, go, ' · ' + itemById[f.item].description), el('div', null, f.message)));
+        el('div', null, el('span', { class: 'flag-item' }, go, ' · ' + (byId[f.item] ? byId[f.item].description : '')), el('div', null, f.message)));
     }));
   }
 
   function renderTabs() {
-    const tabs = document.getElementById('item-tabs');
-    tabs.replaceChildren(...D.items.map((item) => {
+    if (!D.items.some((i) => i.id === selected)) selected = D.items.length ? D.items[0].id : null;
+    $('item-tabs').replaceChildren(...D.items.map((item) => {
       const b = el('button', { type: 'button', 'data-item': item.id, 'aria-pressed': String(item.id === selected) }, item.id);
       b.addEventListener('click', () => select(item.id));
       return b;
     }));
-    document.querySelectorAll('.seg button').forEach((b) => {
-      b.addEventListener('click', () => {
-        mode = b.dataset.mode;
-        document.querySelectorAll('.seg button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
-        renderItem();
-      });
-    });
   }
 
   // Price in force each month: the last quote carries until the next one.
@@ -294,72 +364,96 @@
   }
 
   function renderItem() {
-    const item = itemById[selected];
+    const item = D.items.find((i) => i.id === selected);
+    if (disposeChart) { disposeChart(); disposeChart = null; }
+    if (!item) {
+      $('item-name').textContent = 'No items yet';
+      $('item-meta').textContent = 'Add items and quotes under "Your items, suppliers and price sources" above.';
+      $('chart').replaceChildren();
+      $('monthly').replaceChildren();
+      $('suppliers').replaceChildren();
+      return;
+    }
     document.querySelectorAll('#item-tabs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.item === selected)));
-    document.getElementById('item-name').textContent = `${item.id} · ${item.description}`;
-    const basket = Object.entries(item.basket).map(([k, t]) => `${COMMODITY[k] || k} ${t} t/t`).join(', ');
-    document.getElementById('item-meta').textContent =
-      `Price per ${item.unit}. Planned volume ${item.annualVolume.toLocaleString('en-US')} ${item.unit}/year. Material basis: ${basket}. Current supplier: ${item.currentSupplier}.`;
+    $('item-name').textContent = `${item.id} · ${item.description}`;
+    const volume = item.annualVolume ? `Planned volume ${item.annualVolume.toLocaleString('en-US')} ${item.unit}/year. ` : '';
+    $('item-meta').textContent = `Price per ${item.unit}. ${volume}Compared with: ${item.refDetail}. Current supplier: ${item.currentSupplier || 'not set'}.`;
 
     const series = Object.entries(item.prices).map(([name, raw]) => {
       const f = inForce(raw);
       return { name, color: colorOf(name), values: mode === 'index' ? indexed(f.values) : f.values, held: f.held, step: true };
     });
-    series.push({ name: 'Material cost', short: 'Material', color: 'var(--ink-2)', dash: 'dashed', values: mode === 'index' ? indexed(item.material) : item.material });
+    if (item.refKind === 'cost') {
+      series.push({ name: item.refLabel, short: item.refLabel === 'Material cost' ? 'Material' : item.refLabel, color: 'var(--ink-2)', dash: 'dashed', values: mode === 'index' ? indexed(item.material) : item.material });
+    } else if (item.refKind === 'index' && mode === 'index') {
+      series.push({ name: item.refLabel, color: 'var(--ink-2)', dash: 'dashed', values: indexed(item.material) });
+    }
     if (mode === 'index') series.push({ name: 'IGP-M', color: 'var(--muted)', dash: 'dotted', values: D.igpmIndex });
 
     const digits = item.unit === 'pc' ? 3 : 2;
-    if (disposeChart) disposeChart();
-    disposeChart = lineChart(document.getElementById('chart'), {
-      title: `${item.description}: ${mode === 'index' ? 'indexed prices' : 'prices in BRL'} by month`,
-      months: D.months,
-      series,
-      format: mode === 'index' ? (v) => v.toFixed(1) : (v) => money(v, digits),
-      tick: mode === 'index' ? (v) => String(v) : (v) => 'R$' + (v >= 100 ? v.toFixed(0) : v.toFixed(digits === 3 ? 1 : 0)),
-    });
-
+    const hasPrices = series.some((s) => s.values.some((v) => v != null) && s.step);
+    if (!hasPrices) {
+      $('chart').replaceChildren(el('p', { class: 'note' }, 'No quotes for this item in the last 24 months.'));
+    } else {
+      disposeChart = lineChart($('chart'), {
+        title: `${item.description}: ${mode === 'index' ? 'indexed prices' : 'prices in BRL'} by month`,
+        months: D.months,
+        series,
+        format: mode === 'index' ? (v) => v.toFixed(1) : (v) => money(v, digits),
+        tick: mode === 'index' ? (v) => String(v) : (v) => 'R$' + (v >= 100 ? v.toFixed(0) : v.toFixed(digits === 3 ? 1 : 0)),
+      });
+    }
+    $('ref-note').textContent = item.refKind === 'index'
+      ? `${item.refLabel} is an index, so it shows in the indexed view only and the material share is not worked out.`
+      : '';
     renderMonthly(item, digits);
     renderSuppliers(item, digits);
   }
 
   function renderMonthly(item, digits) {
     const names = Object.keys(item.prices);
-    const head = el('tr', null, el('th', null, 'Month'), names.map((n) => el('th', { class: 'num' }, n)), el('th', { class: 'num' }, 'Material cost'));
+    const refHead = item.refKind ? item.refLabel : null;
+    const fmtRef = (v) => (item.refKind === 'cost' ? money(v, digits) : v == null ? '–' : v.toFixed(2));
+    const head = el('tr', null, el('th', null, 'Month'), names.map((n) => el('th', { class: 'num' }, n)), refHead ? el('th', { class: 'num' }, refHead) : null);
     const rows = D.months.map((month, i) => el('tr', null,
       el('td', null, monthLabel(month)),
       names.map((n) => el('td', { class: 'num' }, item.prices[n][i] == null ? '' : money(item.prices[n][i], digits))),
-      el('td', { class: 'num' }, money(item.material[i], digits))));
-    document.getElementById('monthly').replaceChildren(el('thead', null, head), el('tbody', null, rows.reverse()));
+      refHead ? el('td', { class: 'num' }, fmtRef(item.material[i])) : null));
+    $('monthly').replaceChildren(el('thead', null, head), el('tbody', null, rows.reverse()));
   }
 
   function renderSuppliers(item, digits) {
-    const cols = ['Supplier', 'Last quote', 'vs best', '6-mo change', 'Material 6-mo', 'Gap', 'Material share', 'Lead time', 'Payment', 'Quoted'];
+    const cols = ['Supplier', 'Last quote', 'vs best', '6-mo change', 'Reference 6-mo', 'Gap', 'Material share', 'Lead time', 'Payment', 'Quoted'];
     const head = el('tr', null, cols.map((c, i) => el('th', { class: i ? 'num' : null }, c)));
+    const days = (v) => (v == null ? '–' : v + ' d');
     const rows = item.table.map((r) => el('tr', { class: r.stale ? 'stale' : null },
       el('td', null, el('span', { class: 'key', style: `border-top-color:${colorOf(r.supplier)};margin-right:8px;vertical-align:middle` }), r.supplier,
         r.current ? el('span', { class: 'badge' }, 'current') : null, r.stale ? el('span', { class: 'badge' }, 'stale') : null),
       el('td', { class: 'num' }, money(r.price, digits)),
-      el('td', { class: 'num' }, r.vs_best_pct ? signed(r.vs_best_pct) : 'best'),
+      el('td', { class: 'num' }, r.vs_best_pct ? signed(r.vs_best_pct) : r.stale ? '–' : 'best'),
       el('td', { class: 'num' }, signed(r.change_pct)),
       el('td', { class: 'num' }, signed(r.material_change_pct)),
       el('td', { class: 'num' }, signed(r.gap_pp, ' pp')),
       el('td', { class: 'num' }, r.material_share_pct == null ? '–' : r.material_share_pct.toFixed(0) + '%'),
-      el('td', { class: 'num' }, r.lead_time_days + ' d'),
-      el('td', { class: 'num' }, r.payment_days + ' d'),
+      el('td', { class: 'num' }, days(r.lead_time_days)),
+      el('td', { class: 'num' }, days(r.payment_days)),
       el('td', { class: 'num' }, monthLabel(r.quoted, true))));
-    document.getElementById('suppliers').replaceChildren(el('thead', null, head), el('tbody', null, rows));
+    $('suppliers').replaceChildren(el('thead', null, head), el('tbody', null, rows.length ? rows : el('tr', null, el('td', { colspan: cols.length, class: 'note' }, 'No quotes yet.'))));
   }
 
   function renderMarkets() {
-    const cards = D.market.map((t) => el('div', { class: 'market' },
-      el('div', { class: 'name' }, COMMODITY[t.key] || t.key),
-      el('div', { class: 'value' }, money(t.last)),
+    const card = (name, value, t, color) => el('div', { class: 'market' },
+      el('div', { class: 'name' }, name),
+      el('div', { class: 'value' }, value),
       el('div', { class: 'meta' }, `3 mo ${signed(t.change_3m)} · 6 mo ${signed(t.change_6m)} · 12 mo ${signed(t.change_12m)}`),
       el('div', { class: 'meta' }, 'Trend: ' + (t.direction || 'n/a')),
-      sparkline(t.history, 'var(--s1)')));
-    document.getElementById('markets').replaceChildren(...cards);
-    document.getElementById('sources').replaceChildren(...D.sources.map((s) =>
-      el('li', null, el('a', { href: s.url }, s.name), ` (${s.license})`)));
+      t.history.filter((v) => v != null).length > 1 ? sparkline(t.history, color) : null);
+    const cards = D.market.map((t) => card(COMMODITY[t.key] || t.key, t.last == null ? '–' : money(t.last), t, 'var(--s1)'));
+    const extra = D.extra.map((t) => card(t.name, t.last == null ? '–' : t.last.toLocaleString('en-US', { maximumFractionDigits: 2 }) + (t.unit && t.unit !== 'index' ? ' ' + t.unit : ''), t, 'var(--ink-2)'));
+    $('markets').replaceChildren(...cards, ...extra);
+    $('market-note').textContent = `Metals in BRL per kg, World Bank monthly averages converted at the Banco Central rate, up to ${monthLabel(D.marketAsOf)}.` +
+      (extra.length ? ' Grey lines: the other price references your items use.' : '');
+    $('sources').replaceChildren(...SOURCES.map((s) => el('li', null, el('a', { href: s.url }, s.name), ` (${s.license})`)));
   }
 
   function select(id) {
@@ -367,9 +461,24 @@
     renderItem();
   }
 
-  renderHeader();
-  renderFlags();
-  renderTabs();
-  renderItem();
-  renderMarkets();
+  function renderAll() {
+    recompute();
+    renderHeader();
+    renderFlags();
+    renderTabs();
+    renderItem();
+    renderMarkets();
+  }
+
+  document.querySelectorAll('.seg button').forEach((b) => {
+    b.addEventListener('click', () => {
+      mode = b.dataset.mode;
+      document.querySelectorAll('.seg button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+      renderItem();
+    });
+  });
+
+  const setup = window.Setup({ state, store, KEY, commit, replaceWorkspace, sampleWorkspace, renderAll, el, money, monthLabel, select });
+  renderAll();
+  setup.render();
 })();

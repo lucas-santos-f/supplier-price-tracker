@@ -3,19 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Supplier Price Tracker</title>
-<meta name="description" content="Supplier quotes compared with each other and with open market data for the raw material inside each item.">
+<title>SupplyPulse</title>
+<meta name="description" content="Supplier quotes compared with each other and with the market price behind each item: metals, inflation indexes or your own price source.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
   <header>
-    <h1>Supplier price tracker</h1>
-    <p class="lede">Quotes for four purchased items, compared across suppliers and against the market price of the
-      metal inside each item: copper, aluminum, zinc and iron ore from the World Bank, converted to BRL with the
-      Banco Central do Brasil exchange rate, with IGP-M as the inflation reference.</p>
+    <h1>SupplyPulse</h1>
+    <p class="lede">Supplier quotes compared with each other and with the market price behind each item: the metal
+      inside it (World Bank prices converted at the Banco Central do Brasil rate), an inflation index such as IPCA,
+      or a price API you already use. It opens with sample items and real market data; add your own below.</p>
     <p class="note" id="asof"></p>
   </header>
+
+  <section class="panel setup" aria-labelledby="setup-title">
+    <details id="setup">
+      <summary><span class="setup-title" id="setup-title">Your items, suppliers and price sources</span> <span class="note" id="ws-state"></span></summary>
+      <p class="note">Edit the sample or start empty. Everything is saved in this browser only, and nothing is
+        uploaded. Export your data to move it to another computer.</p>
+      <div class="tabs" id="setup-tabs" role="group" aria-label="Setup section"></div>
+      <div id="setup-body"></div>
+      <p class="note" id="setup-msg" role="status"></p>
+      <div class="controls ws-controls">
+        <button type="button" class="btn" id="ws-empty">Start empty</button>
+        <button type="button" class="btn" id="ws-sample">Back to the sample</button>
+        <button type="button" class="btn" id="ws-export">Export my data (JSON)</button>
+        <label class="btn file-btn">Load data (JSON)<input type="file" id="ws-import" accept=".json,application/json"></label>
+      </div>
+    </details>
+  </section>
 
   <section class="tiles" id="kpis" aria-label="Summary"></section>
 
@@ -38,6 +55,7 @@
       </div>
     </div>
     <div id="chart"></div>
+    <p class="note" id="ref-note"></p>
     <details>
       <summary>Monthly values</summary>
       <div class="table-wrap"><table id="monthly"></table></div>
@@ -50,17 +68,21 @@
   </section>
 
   <section class="panel" aria-labelledby="market-title">
-    <h2 id="market-title">Market, in BRL per kg</h2>
+    <h2 id="market-title">Market</h2>
+    <p class="note" id="market-note"></p>
     <div class="markets" id="markets"></div>
   </section>
 
   <footer>
-    <p>Supplier names, quotes and volumes are invented sample data. Market data is real and comes from:</p>
+    <p>Sample supplier names, quotes and volumes are invented. Market data is real and comes from:</p>
     <ul id="sources"></ul>
     <p>Galvanized steel uses iron ore and zinc as a rough proxy for its raw material.</p>
   </footer>
 </main>
 <script src="data.js"></script>
+<script src="analysis.js"></script>
+<script src="columns.js"></script>
+<script src="setup.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

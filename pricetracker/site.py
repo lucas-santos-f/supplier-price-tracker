@@ -62,6 +62,21 @@ def payload(items, quotes, market, registry, as_of=None):
             {"name": s.name, "license": s.license, "url": s.landing_page, "attribution": s.attribution}
             for s in registry if s.approved
         ],
+        # inputs, so the page can redo the analysis with the user's own items and quotes
+        "raw": {
+            "market": {m: market[m] for m in sorted(market)},
+            "items": [
+                {"id": i.id, "description": i.description, "unit": i.unit, "kgPerUnit": i.kg_per_unit,
+                 "annualVolume": i.annual_volume, "currentSupplier": i.current_supplier,
+                 "source": {"type": "basket", "basket": i.basket}}
+                for i in items
+            ],
+            "quotes": [
+                {"month": q.month, "supplier": q.supplier, "item": q.item, "price": q.price,
+                 "leadTime": q.lead_time_days, "payment": q.payment_days, "moq": q.moq}
+                for q in quotes
+            ],
+        },
     })
 
 
