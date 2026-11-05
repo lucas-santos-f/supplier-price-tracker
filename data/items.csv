@@ -1,0 +1,5 @@
+item,description,unit,kg_per_unit,basket,annual_volume,current_supplier
+CU-TUBE-0952,"Copper tube ACR 3/8 in (9.52 mm), soft coil",kg,1,copper:1.0,18000,Gamma Metals
+AL-FIN-0110,"Aluminum fin stock 0.11 mm, coil",kg,1,aluminum:1.0,9500,Alpha Supply
+BR-ELB-12,"Brass elbow 1/2 in, brazing ends",pc,0.06,copper:0.62;zinc:0.38,40000,Beta Tubing
+ST-GAL-080,"Galvanized steel sheet 0.80 mm",kg,1,iron_ore:1.6;zinc:0.03,60000,Delta Industrial
