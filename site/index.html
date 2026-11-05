@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supplier Price Tracker</title>
+<meta name="description" content="Supplier quotes compared with each other and with open market data for the raw material inside each item.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Supplier price tracker</h1>
+    <p class="lede">Quotes for four purchased items, compared across suppliers and against the market price of the
+      metal inside each item: copper, aluminum, zinc and iron ore from the World Bank, converted to BRL with the
+      Banco Central do Brasil exchange rate, with IGP-M as the inflation reference.</p>
+    <p class="note" id="asof"></p>
+  </header>
+
+  <section class="tiles" id="kpis" aria-label="Summary"></section>
+
+  <section class="panel" aria-labelledby="flags-title">
+    <h2 id="flags-title">What needs attention</h2>
+    <ul class="flags" id="flags"></ul>
+  </section>
+
+  <section class="panel" aria-labelledby="item-title">
+    <h2 id="item-title">Quotes by item</h2>
+    <div class="tabs" id="item-tabs" role="group" aria-label="Item"></div>
+    <div class="toolbar">
+      <div>
+        <strong id="item-name"></strong>
+        <div class="note" id="item-meta"></div>
+      </div>
+      <div class="seg" role="group" aria-label="Scale">
+        <button type="button" data-mode="price" aria-pressed="true">Price in BRL</button>
+        <button type="button" data-mode="index" aria-pressed="false">Indexed, first month = 100</button>
+      </div>
+    </div>
+    <div id="chart"></div>
+    <details>
+      <summary>Monthly values</summary>
+      <div class="table-wrap"><table id="monthly"></table></div>
+    </details>
+    <h2 style="margin-top:20px">Latest quotes</h2>
+    <div class="table-wrap"><table id="suppliers"></table></div>
+    <p class="note">Change and material columns cover the last 6 months. Gap = supplier change minus material
+      change, in percentage points. Material share = market value of the metal in one unit divided by the quoted
+      price. Quotes older than 3 months are shown as stale and do not count as the best price.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="market-title">
+    <h2 id="market-title">Market, in BRL per kg</h2>
+    <div class="markets" id="markets"></div>
+  </section>
+
+  <footer>
+    <p>Supplier names, quotes and volumes are invented sample data. Market data is real and comes from:</p>
+    <ul id="sources"></ul>
+    <p>Galvanized steel uses iron ore and zinc as a rough proxy for its raw material.</p>
+  </footer>
+</main>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
