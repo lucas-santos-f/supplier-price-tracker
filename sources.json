@@ -1,0 +1,43 @@
+{
+  "sources": [
+    {
+      "id": "worldbank-pinksheet",
+      "name": "World Bank Commodity Price Data (The Pink Sheet)",
+      "kind": "open data file",
+      "status": "approved",
+      "hosts": ["www.worldbank.org", "thedocs.worldbank.org"],
+      "landing_page": "https://www.worldbank.org/en/research/commodity-markets",
+      "license": "CC BY 4.0",
+      "license_url": "https://datacatalog.worldbank.org/public-licenses#cc-by",
+      "attribution": "World Bank Commodity Price Data (The Pink Sheet), CC BY 4.0",
+      "checked": "2026-11-05",
+      "notes": "Monthly averages in nominal USD. The landing page links its data licensing to the CC BY 4.0 section of the Data Catalog. robots.txt on www.worldbank.org allows /en/research/; thedocs.worldbank.org has no robots.txt (404). The file URL changes with each release, so the collector reads it from the landing page."
+    },
+    {
+      "id": "bcb-sgs",
+      "name": "Banco Central do Brasil, SGS time series API",
+      "kind": "official API",
+      "status": "approved",
+      "hosts": ["api.bcb.gov.br"],
+      "landing_page": "https://dadosabertos.bcb.gov.br/",
+      "license": "ODbL 1.0",
+      "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "attribution": "Banco Central do Brasil, SGS (series 3698 and 189), ODbL",
+      "checked": "2026-11-05",
+      "notes": "Series 3698: USD/BRL sell rate, monthly average. Series 189: IGP-M, monthly % change. The open data portal lists SGS series under ODbL. api.bcb.gov.br has no robots.txt (404). Since March 2025 JSON queries need a date range."
+    },
+    {
+      "id": "bls-api",
+      "name": "US Bureau of Labor Statistics Public Data API",
+      "kind": "official API",
+      "status": "rejected",
+      "hosts": ["api.bls.gov"],
+      "landing_page": "https://www.bls.gov/developers/",
+      "license": "",
+      "license_url": "",
+      "attribution": "",
+      "checked": "2026-11-05",
+      "notes": "robots.txt on api.bls.gov disallows every path for every user agent, so producer price indexes are not collected from it."
+    }
+  ]
+}
