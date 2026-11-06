@@ -1,0 +1,32 @@
+{
+ "app": "SupplyPulse",
+ "kind": "supplier-pages",
+ "contact": "",
+ "links": [
+  {
+   "item": "FLOUR-T1-25",
+   "supplier": "Northfield Mills",
+   "url": "https://shop.northfieldmills.example/flour-type-1-25kg",
+   "kind": "page"
+  },
+  {
+   "item": "FLOUR-T1-25",
+   "supplier": "Harvest Grain Co",
+   "url": "https://www.harvestgrain.example/p/wheat-flour-type-1-5kg",
+   "kind": "page",
+   "factor": 5
+  },
+  {
+   "item": "FLOUR-T1-25",
+   "supplier": "Prairie Flour",
+   "url": "https://prairieflour.example/produtos/farinha-tipo-1-25kg",
+   "kind": "page"
+  },
+  {
+   "item": "FLOUR-T1-25",
+   "supplier": "Grain Direct",
+   "url": "https://produto.mercadolivre.com.br/MLB-0000000000-farinha-de-trigo-tipo-1-25kg",
+   "kind": "page"
+  }
+ ]
+}

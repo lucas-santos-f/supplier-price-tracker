@@ -1,0 +1,143 @@
+{
+ "items": [
+  {
+   "id": "FLOUR-T1-25",
+   "description": "Wheat flour type 1, 25 kg bag",
+   "unit": "pc",
+   "kgPerUnit": 25,
+   "annualVolume": 2400,
+   "currentSupplier": "Northfield Mills",
+   "source": {
+    "type": "none"
+   }
+  }
+ ],
+ "quotes": [
+  {
+   "month": "2026-04",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 98.4,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-05",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 99.1,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-06",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 101.6,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-07",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 103.2,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-08",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 104.9,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-09",
+   "supplier": "Northfield Mills",
+   "item": "FLOUR-T1-25",
+   "price": 106.5,
+   "leadTime": 7,
+   "payment": 28,
+   "moq": 40
+  },
+  {
+   "month": "2026-04",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 101.9,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-05",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 101.4,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-06",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 102.3,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-07",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 102.0,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-08",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 102.8,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-09",
+   "supplier": "Harvest Grain Co",
+   "item": "FLOUR-T1-25",
+   "price": 103.0,
+   "leadTime": 10,
+   "payment": 30,
+   "moq": 80
+  },
+  {
+   "month": "2026-06",
+   "supplier": "Prairie Flour",
+   "item": "FLOUR-T1-25",
+   "price": 104.0,
+   "leadTime": 5,
+   "payment": 21,
+   "moq": 20
+  },
+  {
+   "month": "2026-09",
+   "supplier": "Prairie Flour",
+   "item": "FLOUR-T1-25",
+   "price": 107.2,
+   "leadTime": 5,
+   "payment": 21,
+   "moq": 20
+  }
+ ]
+}

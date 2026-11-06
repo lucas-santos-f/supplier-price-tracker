@@ -24,7 +24,15 @@ def _clean(obj):
     return obj
 
 
-def payload(items, quotes, market, registry, as_of=None):
+def load_web(folder=ROOT / "data" / "web"):
+    """Sample for the supplier pages tab: one item priced from product pages and a run of the page reader."""
+    read = lambda name: json.loads((folder / name).read_text(encoding="utf-8")) if (folder / name).exists() else {}
+    sample, links, results = read("sample.json"), read("supplier-pages.json"), read("page-prices.json")
+    return {"items": sample.get("items", []), "quotes": sample.get("quotes", []), "links": links.get("links", []),
+            "results": results.get("results", []), "resultsUpdated": results.get("updated")}
+
+
+def payload(items, quotes, market, registry, as_of=None, web=None):
     if as_of is None:
         market_month = an.latest_complete_month(market, ("usd_brl", "igpm_pct", "copper"))
         as_of = min(market_month, max(q.month for q in quotes))
@@ -76,11 +84,12 @@ def payload(items, quotes, market, registry, as_of=None):
                  "leadTime": q.lead_time_days, "payment": q.payment_days, "moq": q.moq}
                 for q in quotes
             ],
+            "web": web or {},
         },
     })
 
 
 def build(out=SITE / "data.js"):
-    data = payload(load_items(), load_quotes(), load_market(), Registry.load())
+    data = payload(load_items(), load_quotes(), load_market(), Registry.load(), web=load_web())
     out.write_text("window.PRICE_DATA = " + json.dumps(data, separators=(",", ":")) + ";\n", encoding="utf-8")
     return out, data

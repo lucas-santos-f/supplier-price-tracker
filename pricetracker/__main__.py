@@ -1,4 +1,4 @@
-"""Command line: python -m pricetracker {sources,fetch,report,build}"""
+"""Command line: python -m pricetracker {sources,fetch,report,pages,build}"""
 import argparse
 import sys
 from datetime import date
@@ -51,6 +51,15 @@ def cmd_report(args):
         print(f"[{flag['severity']}] {flag['item']}: {flag['message']}")
 
 
+def cmd_pages(args):
+    from .pages import run
+    results = run(args.links, args.out)
+    for r in results:
+        price = f"{r['price']:.2f} {r['currency']} ({r['method']})" if r["status"] == "ok" else r.get("note", "")
+        print(f"{r['status']:12} {r['item']:16} {r['supplier']:20} {price}")
+    print(f"wrote {args.out}")
+
+
 def cmd_build(args):
     from .site import build
     path, data = build()
@@ -70,6 +79,10 @@ def main(argv=None):
     p = sub.add_parser("report", help="supplier comparison and flags in the terminal")
     p.add_argument("--as-of", help="YYYY-MM")
     p.set_defaults(func=cmd_report)
+    p = sub.add_parser("pages", help="read prices from the supplier product pages you listed")
+    p.add_argument("links", nargs="?", default="supplier-pages.json", help="file downloaded from the page (default: supplier-pages.json)")
+    p.add_argument("--out", default="site/page-prices.json")
+    p.set_defaults(func=cmd_pages)
     p = sub.add_parser("build", help="write site/data.js")
     p.set_defaults(func=cmd_build)
     args = parser.parse_args(argv)

@@ -227,18 +227,30 @@
   const clone = (x) => JSON.parse(JSON.stringify(x));
 
   function sampleWorkspace() {
+    const web = RAW.web || {};
+    const metal = [...new Set(RAW.quotes.map((q) => q.supplier))].sort();
+    const pages = [...(web.quotes || []), ...(web.links || [])].map((q) => q.supplier);
     return {
       version: 1,
       mode: 'sample',
-      items: clone(RAW.items),
-      suppliers: [...new Set(RAW.quotes.map((q) => q.supplier))].sort(),
-      quotes: clone(RAW.quotes),
+      items: clone(RAW.items).concat(clone(web.items || [])),
+      suppliers: [...new Set(metal.concat(pages))],
+      quotes: clone(RAW.quotes).concat(clone(web.quotes || [])),
       apis: [],
+      links: clone(web.links || []),
     };
   }
 
+  function loadWorkspace() {
+    const ws = store.get(KEY.ws, null);
+    if (!ws) return sampleWorkspace();
+    if (!Array.isArray(ws.links)) ws.links = [];
+    if (!Array.isArray(ws.apis)) ws.apis = [];
+    return ws;
+  }
+
   const state = {
-    ws: store.get(KEY.ws, null) || sampleWorkspace(),
+    ws: loadWorkspace(),
     keys: store.get(KEY.keys, {}),
     series: store.get(KEY.series, {}), // {'bcb:433': {fetched, values: {month: value}}}
     saved: true,
@@ -266,8 +278,9 @@
 
   function recompute() {
     D = A.build(state.ws, marketTable(), seriesValues());
-    // Colour follows the supplier, not its rank, so it stays the same on every item. Past eight, one grey.
-    const names = [...state.ws.suppliers].sort();
+    // Colour follows the supplier in the order they were added, so it stays the same on every item and a new
+    // supplier does not repaint the others. Past eight, one grey.
+    const names = state.ws.suppliers;
     colorOf = (name) => { const i = names.indexOf(name); return i >= 0 && i < 8 ? `var(--s${i + 1})` : 'var(--muted)'; };
   }
 

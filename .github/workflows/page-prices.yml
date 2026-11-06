@@ -1,0 +1,40 @@
+# Reads the supplier product pages listed in supplier-pages.json (downloaded from the page) every Monday
+# and commits site/page-prices.json, which the page loads. Does nothing until that file is in the repository.
+# A marketplace API token, if one of the links needs it, goes in a repository secret, never in the file.
+name: Page prices
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Read prices
+        id: read
+        run: |
+          if [ ! -f supplier-pages.json ]; then
+            echo "No supplier-pages.json in the repository, nothing to read."
+            exit 0
+          fi
+          python -m pricetracker pages supplier-pages.json --out site/page-prices.json
+          echo "changed=yes" >> "$GITHUB_OUTPUT"
+        env:
+          MARKET_TOKEN: ${{ secrets.MARKET_TOKEN }}
+      - name: Commit
+        if: steps.read.outputs.changed == 'yes'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/page-prices.json
+          git diff --cached --quiet || git commit -m "Update page prices"
+          git push

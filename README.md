@@ -34,6 +34,33 @@ The panel at the top of the page edits everything in the browser. Nothing is upl
 - USD/BRL and IGP-M can be refreshed from the Banco Central API from the page. The World Bank file is
   refreshed by rebuilding the page (below).
 
+## Supplier pages
+
+Any item can be tracked, metal or not (the sample has a 25 kg bag of wheat flour). Under *Supplier pages*,
+list the product page of each supplier. A web page cannot read other sites, so a small reader does it outside
+the browser and writes `page-prices.json`, which the page loads:
+
+```bash
+python -m pricetracker pages supplier-pages.json     # the list downloaded from the page
+```
+
+- The price comes from the structured data stores publish for search engines: schema.org `Product`/`Offer`
+  in JSON-LD, microdata (`itemprop="price"`) or `product:price:amount` meta tags. Visible text is not parsed.
+- robots.txt is read first, redirects get the same check, and requests to one host are 5 s apart. The user
+  agent is `SupplyPulse-PriceReader/1.0`, with the contact you set on the page.
+- Sites whose terms rule out robots are skipped: Mercado Livre (developer terms, item 7.6, which also limit
+  the API to uses that support the marketplace and ask for written permission for price statistics) and
+  Amazon (conditions of use).
+- A link can also be a JSON API of a supplier or marketplace whose terms allow it, with the path to the price
+  field. Its token is read from an environment variable named on the link, never from the file.
+- *Units* converts the page's pack to yours (5 when the page sells 5 kg and the item is the 25 kg bag).
+- Pages with no readable price, or that may not be read, are listed; type those prices in or import them.
+- `.github/workflows/page-prices.yml` runs the reader every Monday once `supplier-pages.json` is committed,
+  and commits `site/page-prices.json`. A page served from the same folder picks it up on its own.
+
+`data/web/` holds the sample: the flour item and its earlier quotes, the page list, and a run of the reader
+made from test copies of those pages (the `.example` addresses do not exist).
+
 ## Data
 
 | File | Content | Source |
@@ -62,6 +89,7 @@ The BLS API is listed as `rejected`: its robots.txt disallows every path.
 python -m pricetracker sources --check   # registry plus a live robots.txt check
 python -m pricetracker fetch             # refresh data/market/*.csv
 python -m pricetracker report            # comparison and flags in the terminal
+python -m pricetracker pages             # read supplier-pages.json into site/page-prices.json
 python -m pricetracker build             # write site/data.js for the page
 python -m unittest discover -s tests
 node --test "tests/*.test.js"             # page analysis, checked against the Python build

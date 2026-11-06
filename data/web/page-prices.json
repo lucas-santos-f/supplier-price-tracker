@@ -1,0 +1,51 @@
+{
+ "app": "SupplyPulse",
+ "kind": "page-prices",
+ "updated": "2026-10-28T00:00:00+00:00",
+ "agent": "SupplyPulse-PriceReader/1.0",
+ "results": [
+  {
+   "date": "2026-10-28",
+   "item": "FLOUR-T1-25",
+   "supplier": "Prairie Flour",
+   "url": "https://prairieflour.example/produtos/farinha-tipo-1-25kg",
+   "kind": "page",
+   "status": "not allowed",
+   "note": "robots.txt of https://prairieflour.example does not allow /produtos/farinha-tipo-1-25kg"
+  },
+  {
+   "date": "2026-10-28",
+   "item": "FLOUR-T1-25",
+   "supplier": "Northfield Mills",
+   "url": "https://shop.northfieldmills.example/flour-type-1-25kg",
+   "kind": "page",
+   "status": "ok",
+   "price": 109.9,
+   "currency": "BRL",
+   "method": "json-ld",
+   "availability": "InStock"
+  },
+  {
+   "date": "2026-10-28",
+   "item": "FLOUR-T1-25",
+   "supplier": "Harvest Grain Co",
+   "url": "https://www.harvestgrain.example/p/wheat-flour-type-1-5kg",
+   "kind": "page",
+   "status": "ok",
+   "price": 104.5,
+   "currency": "BRL",
+   "method": "meta tag",
+   "availability": null,
+   "note": "page price x 5"
+  },
+  {
+   "date": "2026-10-28",
+   "item": "FLOUR-T1-25",
+   "supplier": "Grain Direct",
+   "url": "https://produto.mercadolivre.com.br/MLB-0000000000-farinha-de-trigo-tipo-1-25kg",
+   "kind": "page",
+   "status": "not allowed",
+   "note": "Mercado Livre's developer terms do not allow robots or scraping of the site (item 7.6)"
+  }
+ ]
+}

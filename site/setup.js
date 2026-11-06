@@ -7,7 +7,7 @@ window.Setup = function (ctx) {
   const C = window.Columns;
   const { state, store, KEY, commit, el, money, monthLabel } = ctx;
   const $ = (id) => document.getElementById(id);
-  const TABS = [['items', 'Items'], ['suppliers', 'Suppliers'], ['sources', 'Price sources'], ['quotes', 'Quotes']];
+  const TABS = [['items', 'Items'], ['suppliers', 'Suppliers'], ['sources', 'Price sources'], ['pages', 'Supplier pages'], ['quotes', 'Quotes']];
   const UNIT_OPTIONS = ['kg', 'pc', 'm', 'm2', 'L', 'set'];
   const SOURCE_TYPES = [['basket', 'Metal prices (World Bank)'], ['bcb', 'Banco Central series'], ['api', 'My API source'], ['none', 'Nothing']];
   const COMMON_SGS = [[433, 'IPCA'], [189, 'IGP-M'], [188, 'INPC'], [225, 'IPA-DI'], [3698, 'USD/BRL']];
@@ -336,6 +336,175 @@ window.Setup = function (ctx) {
     ];
   }
 
+  // ---------------------------------------------------------------- supplier pages
+
+  // Same list as pricetracker/pages.py: sites whose terms rule out reading them with a script.
+  const NOT_ALLOWED = [
+    [/(^|\.)api\.mercadolibre\.com$/i, 'Mercado Livre\'s API terms limit it to uses that support the marketplace; ask them before using it for price monitoring.'],
+    [/(^|\.)mercadoli(vre|bre)\.com(\.[a-z]{2})?$/i, 'Mercado Livre\'s terms do not allow robots on the site, so the reader skips it. Type the price in under Quotes.'],
+    [/(^|\.)amazon\.[a-z]{2,3}(\.[a-z]{2})?$/i, 'Amazon\'s conditions of use do not allow robots, so the reader skips it. Type the price in under Quotes.'],
+  ];
+  const termsNote = (url) => {
+    let host = '';
+    try { host = new URL(url).hostname; } catch (e) { return null; }
+    const hit = NOT_ALLOWED.find(([re]) => re.test(host));
+    return hit ? hit[1] : null;
+  };
+  let pageRun = null; // {name, updated, results} from page-prices.json
+  let pageMsg = '';
+
+  function pageRunFrom(data, name) {
+    if (!data || data.kind !== 'page-prices' || !Array.isArray(data.results)) throw new Error('This is not a page-prices.json file from the price reader.');
+    return { name, updated: data.updated, results: data.results };
+  }
+
+  // the newest price per month, supplier and item; quote terms copied from that supplier's last quote
+  function quotesFromRun(results) {
+    const add = [];
+    const skipped = [];
+    const seen = new Set();
+    for (const r of results.slice().sort((a, b) => b.date.localeCompare(a.date))) {
+      if (r.status !== 'ok') continue;
+      const month = r.date.slice(0, 7);
+      const key = `${month}|${r.supplier}|${r.item}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!ws().items.some((i) => i.id === r.item)) { skipped.push(`${r.item} is not in your items`); continue; }
+      if (r.currency && r.currency !== 'BRL') { skipped.push(`${r.supplier}: price in ${r.currency}, not converted`); continue; }
+      const last = ws().quotes.filter((q) => q.item === r.item && q.supplier === r.supplier).sort((a, b) => b.month.localeCompare(a.month))[0];
+      add.push({ month, supplier: r.supplier, item: r.item, price: r.price, leadTime: last ? last.leadTime : null,
+        payment: last ? last.payment : null, moq: last ? last.moq : null, source: 'page' });
+    }
+    return { add, skipped };
+  }
+
+  function pagesTab() {
+    const items = ws().items.map((i) => [i.id, i.id]);
+    const links = ws().links;
+    const rows = links.map((link, index) => {
+      const at = (fn) => commit((w) => fn(w.links[index]), { setup: false });
+      const warn = termsNote(link.url);
+      const kind = select([['page', 'product page'], ['api', 'API']], link.kind || 'page', { 'aria-label': 'Kind' }, (v) => commit((w) => { w.links[index].kind = v; }));
+      const factor = input({ type: 'number', min: 0, step: 'any', value: link.factor || 1, 'aria-label': 'Units on the page per item unit', class: 'w-code' }, (n) => at((l) => { l.factor = num(n.value) || 1; }));
+      const url = input({ type: 'url', value: link.url, 'aria-label': 'Address', class: 'w-url' }, (n) => commit((w) => { w.links[index].url = n.value.trim(); }));
+      const api = link.kind === 'api' ? el('div', { class: 'detail api-fields' },
+        input({ type: 'text', value: link.priceField || '', placeholder: 'price field, e.g. price', 'aria-label': 'Price field', class: 'w-code' }, (n) => at((l) => { l.priceField = n.value.trim(); })),
+        input({ type: 'text', value: link.currencyField || '', placeholder: 'currency field', 'aria-label': 'Currency field', class: 'w-code' }, (n) => at((l) => { l.currencyField = n.value.trim(); })),
+        input({ type: 'text', value: link.tokenEnv || '', placeholder: 'token variable', 'aria-label': 'Environment variable with the token', class: 'w-code' }, (n) => at((l) => { l.tokenEnv = n.value.trim(); }))) : null;
+      const del = button('Delete', () => commit((w) => { w.links.splice(index, 1); }), { class: 'link', 'aria-label': `Delete the link for ${link.supplier}` });
+      return el('tr', null, el('td', null, link.item), el('td', null, link.supplier),
+        el('td', null, url, api, warn ? el('div', { class: 'field-error' }, warn) : null), el('td', null, kind), el('td', null, factor), el('td', null, del));
+    });
+
+    const f = {
+      item: el('select', { 'aria-label': 'Item' }, items.map(([v, l]) => el('option', { value: v }, l))),
+      supplier: el('input', { type: 'text', placeholder: 'Supplier', 'aria-label': 'Supplier', list: 'page-suppliers', class: 'w-desc' }),
+      url: el('input', { type: 'url', placeholder: 'https://… product page', 'aria-label': 'Product page address', class: 'w-url' }),
+    };
+    const addErr = el('span', { class: 'field-error', role: 'alert' });
+    const addLink = button('Add link', () => {
+      const supplier = f.supplier.value.trim();
+      const url = f.url.value.trim();
+      if (!f.item.value || !supplier || !/^https?:\/\/[^/\s]+\.[^/\s]+/i.test(url)) { addErr.textContent = 'Item, supplier and a web address are needed.'; return; }
+      commit((w) => {
+        w.links.push({ item: f.item.value, supplier, url, kind: 'page' });
+        if (!w.suppliers.includes(supplier)) w.suppliers.push(supplier);
+      });
+      pageMsg = termsNote(url) || '';
+      render();
+    }, { disabled: !items.length });
+
+    const contact = input({ type: 'text', value: ws().contact || '', placeholder: 'e-mail or site, optional', 'aria-label': 'Contact sent with the reader', class: 'w-desc' }, (n) => commit((w) => { w.contact = n.value.trim(); }, { setup: false }));
+    const getFile = button('Download supplier-pages.json', () => download('supplier-pages.json', JSON.stringify({
+      app: 'SupplyPulse', kind: 'supplier-pages', contact: ws().contact || '', links: ws().links }, null, 1) + '\n', 'application/json'), { disabled: !links.length });
+
+    const drop = el('label', { class: 'drop', id: 'pages-drop' },
+      el('input', { type: 'file', accept: '.json,application/json' }),
+      el('strong', null, 'Load page-prices.json'),
+      el('span', { class: 'file' }, 'The file the price reader writes. Drop it here or click.'));
+    const fileInput = drop.querySelector('input');
+    const loadRun = async (file) => {
+      if (!file) return;
+      try { pageRun = pageRunFrom(JSON.parse(await file.text()), file.name); pageMsg = ''; } catch (e) { pageMsg = `${file.name}: ${e.message}`; }
+      render();
+    };
+    fileInput.addEventListener('change', () => { loadRun(fileInput.files[0]); fileInput.value = ''; });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); loadRun(e.dataTransfer.files[0]); });
+    const web = window.PRICE_DATA.raw.web || {};
+    const sampleRun = ws().mode === 'sample' && (web.results || []).length
+      ? button('Show the sample run', () => { pageRun = { name: 'Sample run (test copies of the pages)', updated: web.resultsUpdated, results: web.results }; pageMsg = ''; render(); })
+      : null;
+
+    let results = null;
+    if (pageRun) {
+      const plan = quotesFromRun(pageRun.results);
+      const latest = pageRun.results.slice().sort((a, b) => b.date.localeCompare(a.date) || a.supplier.localeCompare(b.supplier)).slice(0, 40);
+      const body = latest.map((r) => {
+        const typeIn = r.status !== 'ok' && ws().items.some((i) => i.id === r.item)
+          ? button('Type it in', () => { quoteFilter = r.item; tab = 'quotes'; render(); }, { class: 'link' }) : null;
+        return el('tr', { class: r.status === 'ok' ? null : 'off' },
+          el('td', null, r.date), el('td', null, r.item), el('td', null, r.supplier),
+          el('td', null, r.status === 'ok' ? 'read' : r.status === 'no price' ? 'no price found' : r.status === 'not allowed' ? 'not read' : 'error',
+            r.note ? el('div', { class: 'note' }, r.note) : null, typeIn),
+          el('td', { class: 'num' }, r.status === 'ok' ? money(r.price) + (r.currency && r.currency !== 'BRL' ? ' ' + r.currency : '') : '–'),
+          el('td', null, r.method || '–'));
+      });
+      const apply = button(`Add ${plan.add.length} ${plan.add.length === 1 ? 'price' : 'prices'} as quotes`, () => {
+        commit((w) => {
+          for (const q of plan.add) {
+            const i = w.quotes.findIndex((x) => x.month === q.month && x.supplier === q.supplier && x.item === q.item);
+            if (i >= 0) w.quotes[i] = q; else w.quotes.push(q);
+            if (!w.suppliers.includes(q.supplier)) w.suppliers.push(q.supplier);
+          }
+        });
+        pageMsg = `Added ${plan.add.length} quotes from product pages. Lead time, payment and minimum order were copied from each supplier's last quote.`;
+        ctx.select(plan.add[0] && plan.add[0].item);
+        render();
+      }, { disabled: !plan.add.length, id: 'pages-add' });
+      results = [
+        el('div', { class: 'panel-head' }, el('strong', null, pageRun.name),
+          el('span', { class: 'note' }, pageRun.updated ? 'Read ' + String(pageRun.updated).slice(0, 10) : '')),
+        el('div', { class: 'table-wrap' }, el('table', { class: 'edit results' },
+          el('thead', null, el('tr', null, ['Date', 'Item', 'Supplier', 'Result', 'Price', 'Read from'].map((h, k) => el('th', { class: k === 4 ? 'num' : null }, h)))),
+          el('tbody', null, body.length ? body : el('tr', null, el('td', { colspan: 6, class: 'note' }, 'No results in this file.'))))),
+        plan.skipped.length ? el('p', { class: 'note' }, 'Left out: ' + plan.skipped.join('; ') + '.') : null,
+        el('div', { class: 'controls' }, apply, button('Close', () => { pageRun = null; render(); }, { class: 'link' })),
+      ];
+    }
+
+    return [
+      el('p', { class: 'note' }, 'Any item works here, from copper tube to wheat flour. List the product page of each supplier: the price reader takes the price from the ' +
+        'data the store publishes for search engines (schema.org product data or price tags), reads robots.txt first and skips sites whose terms do not allow it. ' +
+        'This page cannot read other sites itself, for your security and theirs, so the reader runs as a small script on your computer or on a schedule on GitHub.'),
+      el('div', { class: 'table-wrap' }, el('table', { class: 'edit' },
+        el('thead', null, el('tr', null, ['Item', 'Supplier', 'Address', 'Kind', 'Units', ''].map((h) => el('th', null, h)))),
+        el('tbody', null, rows.length ? rows : el('tr', null, el('td', { colspan: 6, class: 'note' }, 'No supplier pages yet.'))))),
+      el('p', { class: 'note' }, 'Units: how many of the page\'s units make one of yours, e.g. 5 when the page sells a 5 kg bag and your item is the 25 kg bag. ' +
+        'API: a marketplace or supplier API whose terms allow it; the token stays in an environment variable on the computer that runs the reader, never in this page.'),
+      el('div', { class: 'controls' }, f.item, f.supplier, f.url, addLink, addErr),
+      el('datalist', { id: 'page-suppliers' }, ws().suppliers.map((s) => el('option', { value: s }))),
+      el('h3', null, 'Run the price reader'),
+      el('ol', { class: 'howto' },
+        el('li', null, 'Download the list: ', getFile, el('span', { class: 'inline' }, ' Contact sent with each request: ', contact)),
+        el('li', null, 'On your computer, in the project folder: ', el('code', null, 'python -m pricetracker pages supplier-pages.json'),
+          '. Or commit the file to your copy of the repository on GitHub: a workflow runs the reader every Monday and keeps page-prices.json next to this page.'),
+        el('li', null, 'Load the result below and add the prices as quotes. Pages without a readable price, or that may not be read, are listed so you can type the price in or import a spreadsheet.')),
+      pageRun ? null : el('div', { class: 'controls' }, drop, sampleRun),
+      ...(results || []),
+      pageMsg ? el('p', { class: 'note', role: 'status' }, pageMsg) : null,
+    ];
+  }
+
+  // a deployed copy may have page-prices.json next to it, written by the scheduled reader
+  if (/^https?:$/.test(location.protocol)) {
+    fetch('page-prices.json', { cache: 'no-store', credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data && data.kind === 'page-prices') { pageRun = pageRunFrom(data, 'page-prices.json next to this page'); if (tab === 'pages') render(); } })
+      .catch(() => {});
+  }
+
   // ---------------------------------------------------------------- quotes
 
   function readQuotes(table, setup) {
@@ -499,7 +668,7 @@ window.Setup = function (ctx) {
       .sort((a, b) => (b.q.month.localeCompare(a.q.month)) || a.q.item.localeCompare(b.q.item) || a.q.supplier.localeCompare(b.q.supplier));
     const shown = list.slice(0, 60);
     const rows = shown.map(({ q, i }) => el('tr', null,
-      el('td', null, monthLabel(q.month)), el('td', null, q.supplier), el('td', null, q.item),
+      el('td', null, monthLabel(q.month)), el('td', null, q.supplier, q.source === 'page' ? el('span', { class: 'badge' }, 'page') : null), el('td', null, q.item),
       el('td', { class: 'num' }, money(q.price, q.price < 10 ? 3 : 2)), el('td', { class: 'num' }, q.leadTime == null ? '–' : q.leadTime + ' d'),
       el('td', { class: 'num' }, q.payment == null ? '–' : q.payment + ' d'), el('td', { class: 'num' }, q.moq == null ? '–' : q.moq.toLocaleString('en-US')),
       el('td', null, button('Delete', () => commit((w) => { w.quotes.splice(i, 1); }), { class: 'link', 'aria-label': `Delete quote ${q.month} ${q.supplier} ${q.item}` }))));
@@ -533,7 +702,7 @@ window.Setup = function (ctx) {
       b.addEventListener('click', () => { tab = key; render(); });
       return b;
     }));
-    const body = tab === 'items' ? itemsTab() : tab === 'suppliers' ? suppliersTab() : tab === 'sources' ? sourcesTab() : quotesTab();
+    const body = tab === 'items' ? itemsTab() : tab === 'suppliers' ? suppliersTab() : tab === 'sources' ? sourcesTab() : tab === 'pages' ? pagesTab() : quotesTab();
     $('setup-body').replaceChildren(...body.filter(Boolean));
   }
 
@@ -548,7 +717,7 @@ window.Setup = function (ctx) {
 
   $('ws-empty').addEventListener('click', () => {
     if (ws().mode === 'custom' && !window.confirm('Clear all your items, suppliers and quotes?')) return;
-    ctx.replaceWorkspace({ version: 1, mode: 'custom', items: [], suppliers: [], quotes: [], apis: [] });
+    ctx.replaceWorkspace({ version: 1, mode: 'custom', items: [], suppliers: [], quotes: [], apis: [], links: [] });
     tab = 'items';
     render();
   });
@@ -558,7 +727,7 @@ window.Setup = function (ctx) {
   });
   $('ws-export').addEventListener('click', () => {
     const w = ws();
-    const out = { app: 'SupplyPulse', version: 1, exported: today(), items: w.items, suppliers: w.suppliers, quotes: w.quotes, apis: w.apis };
+    const out = { app: 'SupplyPulse', version: 1, exported: today(), items: w.items, suppliers: w.suppliers, quotes: w.quotes, apis: w.apis, links: w.links || [], contact: w.contact || '' };
     download('supplypulse-data.json', JSON.stringify(out, null, 1), 'application/json');
   });
   $('ws-import').addEventListener('change', async (e) => {
@@ -570,6 +739,7 @@ window.Setup = function (ctx) {
       if (!Array.isArray(data.items) || !Array.isArray(data.quotes)) throw new Error('This is not a SupplyPulse export.');
       ctx.replaceWorkspace({
         version: 1, mode: 'custom', items: data.items, quotes: data.quotes, apis: Array.isArray(data.apis) ? data.apis : [],
+        links: Array.isArray(data.links) ? data.links : [], contact: typeof data.contact === 'string' ? data.contact : '',
         suppliers: Array.isArray(data.suppliers) ? data.suppliers : [...new Set(data.quotes.map((q) => q.supplier))],
       });
       $('setup-msg').textContent = `Loaded ${data.items.length} items and ${data.quotes.length} quotes from ${file.name}.`;

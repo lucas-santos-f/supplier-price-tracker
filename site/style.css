@@ -241,3 +241,12 @@ table.edit td .note { white-space: normal; }
 .unread { margin-top: 10px; font-size: 14px; }
 .unread ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
 .unread .raw { color: var(--muted); overflow-wrap: anywhere; }
+
+/* supplier pages */
+.setup .w-url { width: 320px; }
+.setup .api-fields { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.setup .howto { margin: 6px 0 12px; padding-left: 20px; color: var(--ink-2); font-size: 14px; }
+.setup .howto li { margin: 6px 0; }
+.setup code { font-size: 13px; background: var(--wash); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+table.results tr.off td { color: var(--ink-2); }
+table.results td .note { white-space: normal; max-width: 420px; }
